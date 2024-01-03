@@ -88,6 +88,7 @@ void startBrew()
     digitalWrite(VALVE_PIN, 0);
     digitalWrite(PUMP_PIN, 0);
     startedBrewAt = millis();
+    digitalWrite(LED_PIN,1);
     state = BREWING;
     Serial.println(state);
 }
@@ -99,7 +100,9 @@ void stopBrew()
     digitalWrite(PUMP_PIN, 1);
     finishedBrewAt = millis();
     lastChange = millis();
+    brewSwitch.has_changed(); // reset has_changed_state of switch to detect reenabling;
     state = FINISHED_BREWING;
+    digitalWrite(LED_PIN,0);
     Serial.println(state);
 }
 
@@ -117,8 +120,19 @@ void control()
 {
     if (position != getPosition())
     {
-        position = getPosition();
+        if (mode == TIME_MODE){
+            position = getPosition();
+        }else{
+            // don't allow change of time during open mode
+            setPosition(position);
+        }
         lastChange = millis();
+    }
+
+    if (rotaryButton.pressed())
+    {
+        switchMode();
+        return;
     }
 
     if (state == BREWING)
@@ -133,15 +147,24 @@ void control()
     }
     else if (state == FINISHED_BREWING)
     {
-        // we wait until the brew switch is reset but at least 5 seconds before returning to WAITING mode;
+        // we wait until the brew switch is reset or 5 seconds before returning to WAITING mode;
+
+        // blink while in FINISHED_BREWING_STATE and the switch is still enabled
+        if (brewSwitch.read() == brewSwitch.PRESSED){
+            int blink = (millis()/512)%2;
+            digitalWrite(LED_PIN, blink);
+        }
+
         if (millis() > (finishedBrewAt + 5000l))
         {
-            Serial.printf("%i\n", brewSwitch.read());
-
             if (brewSwitch.read() == brewSwitch.RELEASED)
             {
                 state = WAITING;
             }
+            Serial.printf("%i\n", brewSwitch.read());
+        }
+        if (brewSwitch.pressed()){ //allow instant re-brew
+            startBrew();
         }
         return;
     }
@@ -152,12 +175,6 @@ void control()
         if (brewSwitch.read() == brewSwitch.PRESSED)
         {
             startBrew();
-            return;
-        }
-
-        if (rotaryButton.pressed())
-        {
-            switchMode();
             return;
         }
         if (state == WAITING)

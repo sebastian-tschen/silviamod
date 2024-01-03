@@ -6,8 +6,6 @@
 #include "controller.hpp"
 #include "rotary.hpp"
 
-#define LED_PIN 16
-
 #define ENC_A D7
 #define ENC_B 10
 #define BUTTON D3
@@ -21,8 +19,10 @@ void setup()
 {
   pinMode(PUMP_PIN, OUTPUT);
   pinMode(VALVE_PIN, OUTPUT);
+  pinMode(LED_PIN, OUTPUT);
   digitalWrite(PUMP_PIN, 1);
   digitalWrite(VALVE_PIN, 1);
+  digitalWrite(LED_PIN, 0);
 
   Serial.begin(115200);
   setupDisplay();

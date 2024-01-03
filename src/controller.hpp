@@ -10,6 +10,7 @@
 
 #define PUMP_PIN D5
 #define VALVE_PIN D6
+#define LED_PIN 16
 
 extern Button rotaryButton;
 extern Button brewSwitch;

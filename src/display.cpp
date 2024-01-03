@@ -1,5 +1,6 @@
 #include "display.hpp"
 #include "octopus.hpp"
+#include "coffee.hpp"
 #include "controller.hpp"
 
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0);
@@ -17,11 +18,6 @@ void centerPrintToScreen(char const *str, u8g2_uint_t y)
   u8g2_uint_t width = u8g2.getStrWidth(str);
   u8g2.setCursor(128 / 2 - width / 2, y);
   u8g2.print(str);
-}
-void centerPrintToScreenX2(char const *str, u8g2_uint_t y)
-{
-  u8g2_uint_t width = u8g2.getStrWidth(str);
-  u8g2.drawUTF8X2(128 / 2 - width, y, str);
 }
 
 void allignRightPrintToScreen(char const *str, u8g2_uint_t y)
@@ -94,13 +90,13 @@ void displayTopBottomProgress(char const *top, char const *bottom, double progre
 void updateDisplay()
 {
 
-  char buf[64];
+  char buf[10];
 
   if (state == SLEEPING)
   {
-    u8g2.clearBuffer();
-    u8g2.sendBuffer();
-    delay(100);
+    u8g2.setPowerSave(1);
+  }else{
+    u8g2.setPowerSave(0);
   }
 
   if (state == BREWING)
@@ -112,46 +108,59 @@ void updateDisplay()
 
       int timeToDisplay = (millis() - startedBrewAt + 1000) / 1000;
 
-      snprintf(buf, sizeof(buf), "%i", timeToDisplay);
-      displayFullScreenProgress(buf, 0.0, u8g2_font_helvB24_tf, 24);
+      u8g2.clearBuffer();
+      u8g2.setFont(u8g2_font_fub49_tn);
+      u8g2.setCursor(3, 61);
+      u8g2.printf("%2i", timeToDisplay);
+
+      u8g2.sendBuffer();
     }
     else
     {
-      Serial.println("- timed");
       // timed mode
+      Serial.println("- timed");
       Serial.printf("startedBrewAt: %i\n", startedBrewAt);
       Serial.printf("position: %i\n", position);
 
       int timeToDisplay = (millis() - startedBrewAt) / 1000;
-      Serial.printf("timtimeToDisplay: %i\n", timeToDisplay);
-      double progress = ((double)(millis() - startedBrewAt)) / ((double)(position * 1000));
 
-      Serial.printf("progress: %3.1f\n", progress);
+      u8g2.clearBuffer();
+      u8g2.setFont(u8g2_font_fub49_tn);
+      u8g2.setCursor(3, 61);
+      u8g2.printf("%2i", timeToDisplay);
+      u8g2.setFont(u8g2_font_fub20_tn);
+      u8g2.setCursor(90, 25);
+      u8g2.printf("%2i", position);
+      u8g2.sendBuffer();
 
-      snprintf(buf, sizeof(buf), "%i/%i", timeToDisplay, position);
-      Serial.print(buf);
-
-      displayFullScreenProgress(buf, progress, u8g2_font_helvB24_tf, 24);
       Serial.print("display done");
     }
   }
   if (state == FINISHED_BREWING)
   {
-    snprintf(buf, sizeof(buf), "done");
-    displayFullScreenProgress(buf, 0.0, u8g2_font_helvB24_tf, 24);
+    u8g2.clearBuffer();
+    u8g2.drawXBM(0, 0, coffee_width, coffee_height, coffee_bits);
+    u8g2.sendBuffer();
   }
   if (state == WAITING)
   {
     if (mode == OPEN_MODE)
     {
-      snprintf(buf, sizeof(buf), "clock");
-      displayFullScreenProgress(buf, 0.0, u8g2_font_helvB24_tf, 24);
+
+      u8g2.clearBuffer();
+      u8g2.setFont(u8g2_font_fub49_tn);
+      centerPrintToScreen("0", 61);
+      u8g2.sendBuffer();
+
     }
     else
     {
       // timed mode
       snprintf(buf, sizeof(buf), "%i", position);
-      displayFullScreenProgress(buf, 0.0, u8g2_font_helvB24_tf, 24);
+      u8g2.clearBuffer();
+      u8g2.setFont(u8g2_font_fub49_tn);
+      centerPrintToScreen(buf, 61);
+      u8g2.sendBuffer();
     }
   }
 }
@@ -161,9 +170,7 @@ void setupDisplay()
   Serial.println("init_display");
 
   u8g2.begin();
-  u8g2.enableUTF8Print();
   u8g2.clearBuffer(); // clear the internal memory
-  u8g2.setFont(u8g2_font_unifont_t_symbols);
   u8g2.drawXBM(0, 0, coffeeOctopus_width, coffeeOctopus_height, coffeeOctopus_bits);
   u8g2.sendBuffer();
   Serial.println("init_display done");
