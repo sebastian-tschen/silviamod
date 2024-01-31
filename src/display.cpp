@@ -3,9 +3,7 @@
 #include "coffee.hpp"
 #include "controller.hpp"
 
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0);
 
-#define SLEEP_AFTER_MS 10 * 1000 // sleep after 10 seconds
 #define TOP_PROGRESS 16
 #define BOTTOM_PROGRESS 48
 #define BOTH_PROGRESS 32
@@ -16,7 +14,7 @@ int brew_seconds = 0;
 void centerPrintToScreen(char const *str, u8g2_uint_t y)
 {
   u8g2_uint_t width = u8g2.getStrWidth(str);
-  u8g2.setCursor(128 / 2 - width / 2, y);
+  u8g2.setCursor(64 / 2 - width / 2, y);
   u8g2.print(str);
 }
 
@@ -27,66 +25,6 @@ void allignRightPrintToScreen(char const *str, u8g2_uint_t y)
   u8g2.print(str);
 }
 
-void displayFullScreenProgress(char const *content, double progress, const uint8_t *font, int fontHeight)
-{
-
-  u8g2.clearBuffer();
-
-  int rad = (int)((progress) * 64.0);
-  if (rad > 0)
-  {
-    u8g2.setDrawColor(1);
-    u8g2.drawDisc(64, BOTH_PROGRESS, rad, U8G2_DRAW_ALL);
-  }
-
-  u8g2.setDrawColor(2);
-  u8g2.setFontMode(1);
-  u8g2.setFont(font);
-  centerPrintToScreen(content, 32 + (fontHeight / 2));
-
-  u8g2.sendBuffer();
-}
-
-void displayTopBottomProgress(char const *top, char const *bottom, double progress, int progressType, const uint8_t *topFont, const uint8_t *bottomFont)
-{
-
-  u8g2.clearBuffer();
-
-  if (progressType != 0)
-  {
-    int rad = (int)((progress) * 64.0);
-    if (rad < 0)
-    {
-      rad = 0;
-    }
-    u8g2.setDrawColor(1);
-    u8g2.drawDisc(64, progressType, rad, U8G2_DRAW_ALL);
-    if (progressType == TOP_PROGRESS)
-    {
-      u8g2.setDrawColor(0);
-      u8g2.drawBox(0, 32, 128, 32);
-    }
-    if (progressType == BOTTOM_PROGRESS)
-    {
-      u8g2.setDrawColor(0);
-      u8g2.drawBox(0, 0, 128, 32);
-    }
-  }
-
-  u8g2.setDrawColor(2);
-  u8g2.setFontMode(1);
-  u8g2.setFont(topFont);
-  allignRightPrintToScreen(top, 27);
-  u8g2.setFont(bottomFont);
-  allignRightPrintToScreen(bottom, 58);
-
-  u8g2.sendBuffer();
-}
-void displayTopBottomProgress(char const *top, char const *bottom, double progress, int progressType)
-{
-  displayTopBottomProgress(top, bottom, progress, progressType, u8g2_font_luRS19_tf, u8g2_font_luRS19_tf);
-}
-
 void updateDisplay()
 {
 
@@ -95,10 +33,49 @@ void updateDisplay()
   if (state == SLEEPING)
   {
     u8g2.setPowerSave(1);
-  }else{
+  }
+  else
+  {
     u8g2.setPowerSave(0);
   }
 
+  if (state == SAUBERN){
+
+        // find out where we are in the saubern cycle
+        int timeInSaubern = millis()-saubernStartedAt;
+        int cycleDuration = (saubernPumpMS + saubernWaitMS);
+        int saubernCycle = timeInSaubern/cycleDuration;
+        int timeIncycle = (timeInSaubern - (saubernCycle * cycleDuration));
+\
+        if (timeIncycle - saubernPumpMS > 0){
+          //waiting
+          int timeToDisplay = (timeIncycle - saubernPumpMS) / 1000;
+
+          u8g2.clearBuffer();
+          u8g2.setFont(u8g2_font_fub42_tn);
+          u8g2.setCursor(0, 70);
+          u8g2.printf("%2i", timeToDisplay);
+          u8g2.setFont(u8g2_font_fub20_tn);
+          u8g2.setCursor(20, 120);
+          u8g2.printf("%2i", saubernCycle);
+          u8g2.sendBuffer();
+        }else{
+          // pumping
+          int timeToDisplay = (saubernPumpMS - timeIncycle) / 1000;
+
+          u8g2.clearBuffer();
+          u8g2.setFont(u8g2_font_fub42_tn);
+          u8g2.setCursor(0, 70);
+          u8g2.printf("%2i", timeToDisplay);
+          u8g2.setFont(u8g2_font_fub20_tn);
+          u8g2.setCursor(20, 120);
+          u8g2.printf("%2i", saubernCycle);
+          u8g2.sendBuffer();
+
+        }
+        return;
+
+  }
   if (state == BREWING)
   {
     Serial.print("display_brewing ");
@@ -106,11 +83,11 @@ void updateDisplay()
     {
       Serial.println("- open");
 
-      int timeToDisplay = (millis() - startedBrewAt + 1000) / 1000;
+      int timeToDisplay = (millis() - startedBrewAt) / 1000;
 
       u8g2.clearBuffer();
-      u8g2.setFont(u8g2_font_fub49_tn);
-      u8g2.setCursor(3, 61);
+      u8g2.setFont(u8g2_font_fub42_tn);
+      u8g2.setCursor(0, 70);
       u8g2.printf("%2i", timeToDisplay);
 
       u8g2.sendBuffer();
@@ -125,11 +102,11 @@ void updateDisplay()
       int timeToDisplay = (millis() - startedBrewAt) / 1000;
 
       u8g2.clearBuffer();
-      u8g2.setFont(u8g2_font_fub49_tn);
-      u8g2.setCursor(3, 61);
+      u8g2.setFont(u8g2_font_fub42_tn);
+      u8g2.setCursor(0, 70);
       u8g2.printf("%2i", timeToDisplay);
       u8g2.setFont(u8g2_font_fub20_tn);
-      u8g2.setCursor(90, 25);
+      u8g2.setCursor(20, 120);
       u8g2.printf("%2i", position);
       u8g2.sendBuffer();
 
@@ -138,28 +115,38 @@ void updateDisplay()
   }
   if (state == FINISHED_BREWING)
   {
-    u8g2.clearBuffer();
-    u8g2.drawXBM(0, 0, coffee_width, coffee_height, coffee_bits);
-    u8g2.sendBuffer();
+    if (millis() > finishedBrewAt + SLEEP_AFTER_MS)
+    {
+      u8g2.setPowerSave(1);
+    }
+    else
+    {
+      int total = (finishedBrewAt - startedBrewAt) / 1000;
+      u8g2.clearBuffer();
+      u8g2.drawXBM(0, 0, coffee_width, coffee_height, coffee_bits);
+      u8g2.setFont(u8g2_font_fub20_tn);
+      u8g2.setCursor(18, 120);
+      u8g2.printf("%2i", total);
+      u8g2.sendBuffer();
+    }
   }
   if (state == WAITING)
   {
     if (mode == OPEN_MODE)
     {
-
       u8g2.clearBuffer();
-      u8g2.setFont(u8g2_font_fub49_tn);
-      centerPrintToScreen("0", 61);
+      u8g2.setFont(u8g2_font_fub42_tn);
+      u8g2.setCursor(0, 70);
+      u8g2.printf("%2i", 0);
       u8g2.sendBuffer();
-
     }
     else
     {
       // timed mode
-      snprintf(buf, sizeof(buf), "%i", position);
       u8g2.clearBuffer();
-      u8g2.setFont(u8g2_font_fub49_tn);
-      centerPrintToScreen(buf, 61);
+      u8g2.setFont(u8g2_font_fub42_tn);
+      u8g2.setCursor(0, 70);
+      u8g2.printf("%2i", position);
       u8g2.sendBuffer();
     }
   }
@@ -170,9 +157,10 @@ void setupDisplay()
   Serial.println("init_display");
 
   u8g2.begin();
+  u8g2.enableUTF8Print(); //required for ü and such
   u8g2.clearBuffer(); // clear the internal memory
   u8g2.drawXBM(0, 0, coffeeOctopus_width, coffeeOctopus_height, coffeeOctopus_bits);
   u8g2.sendBuffer();
   Serial.println("init_display done");
-  delay(1000);
+  delay(3000);
 }

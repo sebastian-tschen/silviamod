@@ -12,8 +12,17 @@ int state = WAITING;
 int mode = TIME_MODE;
 unsigned long startedBrewAt = 0;
 unsigned long finishedBrewAt = 0;
+bool pressDetected = false;
+unsigned long pressDetectedAt = 0;
+unsigned int LONG_PRESS_DURATION = 2000;
+unsigned int saubernStartedAt = 0;
 
-void saveState()
+int saubernCycleCount = 7;
+int saubernPumpMS = 10000;
+int saubernWaitMS = 7000;
+
+
+result saveState()
 {
     int address = 0;
     int savedMode;
@@ -39,6 +48,29 @@ void saveState()
         Serial.printf("written %i bytes to flash\n", address);
     }
     EEPROM.end();
+    MENU_ON = false;
+    lastChange = millis();
+    return quit;
+}
+
+result startSaubern()
+{
+    Serial.println("starting saubern");
+    state = SAUBERN;
+    saubernStartedAt = millis();
+
+    MENU_ON = false;
+    lastChange = millis();
+    return quit;
+}
+void stopSaubern()
+{
+    Serial.println("stopping saubern");
+    state = WAITING;
+
+    MENU_ON = true;
+    lastChange = millis();
+    menuNav.idleOff();
 }
 
 void loadState()
@@ -82,13 +114,26 @@ bool timedBrewFinished()
     return millis() > (startedBrewAt + (position * 1000l));
 }
 
+void switchLED(int on)
+{
+    if (on == 0)
+    {
+        pinMode(LED_PIN, INPUT);
+    }
+    else
+    {
+        pinMode(LED_PIN, OUTPUT);
+        digitalWrite(LED_PIN, 0);
+    }
+}
+
 void startBrew()
 {
     Serial.println("starting Brew");
     digitalWrite(VALVE_PIN, 0);
     digitalWrite(PUMP_PIN, 0);
     startedBrewAt = millis();
-    digitalWrite(LED_PIN,1);
+    switchLED(1);
     state = BREWING;
     Serial.println(state);
 }
@@ -102,8 +147,14 @@ void stopBrew()
     lastChange = millis();
     brewSwitch.has_changed(); // reset has_changed_state of switch to detect reenabling;
     state = FINISHED_BREWING;
-    digitalWrite(LED_PIN,0);
+    switchLED(0);
     Serial.println(state);
+}
+
+void goToSleep()
+{
+
+    state = SLEEPING;
 }
 
 void initControl()
@@ -113,6 +164,7 @@ void initControl()
     {
         mode = TIME_MODE;
         state = FINISHED_BREWING;
+        brewSwitch.has_changed(); // reset has_changed flag
     }
 }
 
@@ -120,19 +172,101 @@ void control()
 {
     if (position != getPosition())
     {
-        if (mode == TIME_MODE){
-            position = getPosition();
-        }else{
-            // don't allow change of time during open mode
-            setPosition(position);
+        if (MENU_ON)
+        {
+            int change = getPosition() - position;
+            if (change > 0)
+            {
+                navigationInput.write('+');
+            }
+            else
+            {
+                navigationInput.write('-');
+            }
+            setPosition(position); // reset internal count;
+        }
+        else
+        {
+            if (mode == TIME_MODE && state != FINISHED_BREWING)
+            {
+                position = getPosition();
+            }
+            else
+            {
+                // don't allow change of time during open mode
+                setPosition(position);
+            }
         }
         lastChange = millis();
     }
 
     if (rotaryButton.pressed())
     {
-        switchMode();
+        if (MENU_ON)
+        {
+            navigationInput.write('*');
+        }
+        else
+        {
+            switchMode();
+        }
+        pressDetected = true;
+        pressDetectedAt = millis();
+    }
+
+    if (pressDetected)
+    {
+        if (rotaryButton.read() == rotaryButton.RELEASED)
+        {
+            pressDetected = false;
+        }
+        else
+        {
+            if ((millis() - pressDetectedAt) > LONG_PRESS_DURATION)
+            {
+                if (!MENU_ON)
+                {
+                    MENU_ON = true;
+                    menuNav.idleOff();
+                    Serial.println("entering menu due to long press");
+                    pressDetected = false;
+                    return;
+                }
+            }
+        }
+    }
+
+    if (state == SAUBERN){
+
+        // find out where we are in the saubern cycle
+        int timeInSaubern = millis()-saubernStartedAt;
+        int cycleDuration = (saubernPumpMS + saubernWaitMS);
+        int saubernCycle = timeInSaubern/cycleDuration;
+        int timeIncycle = (timeInSaubern - (saubernCycle * cycleDuration));
+
+        Serial.println(timeInSaubern);
+        Serial.println(cycleDuration);
+        Serial.println(saubernCycle);
+        Serial.println(timeIncycle);
+        Serial.println(timeIncycle - saubernPumpMS);
+        if (timeIncycle - saubernPumpMS > 0){
+
+            Serial.println("no saubern");
+            //we should be waiting
+            digitalWrite(VALVE_PIN, 1);
+            digitalWrite(PUMP_PIN, 1);
+            if (saubernCycle >= saubernCycleCount){
+                stopSaubern();
+                return;
+            }
+        }else{
+            //we should be pumping
+            Serial.println("do saubern");
+            digitalWrite(VALVE_PIN, 0);
+            digitalWrite(PUMP_PIN, 0);
+        }
         return;
+
     }
 
     if (state == BREWING)
@@ -150,9 +284,10 @@ void control()
         // we wait until the brew switch is reset or 5 seconds before returning to WAITING mode;
 
         // blink while in FINISHED_BREWING_STATE and the switch is still enabled
-        if (brewSwitch.read() == brewSwitch.PRESSED){
-            int blink = (millis()/512)%2;
-            digitalWrite(LED_PIN, blink);
+        if (brewSwitch.read() == brewSwitch.PRESSED)
+        {
+            int blink = (millis() / 512) % 2;
+            switchLED(blink);
         }
 
         if (millis() > (finishedBrewAt + 5000l))
@@ -160,10 +295,12 @@ void control()
             if (brewSwitch.read() == brewSwitch.RELEASED)
             {
                 state = WAITING;
+                switchLED(0);
             }
             Serial.printf("%i\n", brewSwitch.read());
         }
-        if (brewSwitch.pressed()){ //allow instant re-brew
+        if (brewSwitch.pressed())
+        { // allow instant re-brew
             startBrew();
         }
         return;
@@ -177,19 +314,18 @@ void control()
             startBrew();
             return;
         }
-        if (state == WAITING)
+        if (state == SLEEPING)
         {
-            if (millis() > lastChange + 10000)
+            if (millis() < lastChange + SLEEP_AFTER_MS)
             {
-                state = SLEEPING;
-                saveState();
+                state = WAITING; // something happend... wake up
             }
         }
         else
         {
-            if (millis() < lastChange + 10000)
+            if (millis() > lastChange + SLEEP_AFTER_MS)
             {
-                state = WAITING;
+                goToSleep();
             }
         }
     }
