@@ -6,6 +6,7 @@
 
 #define EEPROM_SIZE 50
 
+
 int position = 30; // rotary encoder position, marking seconds of brew time
 unsigned long lastChange;
 int state = WAITING;
@@ -17,10 +18,42 @@ unsigned long pressDetectedAt = 0;
 unsigned int LONG_PRESS_DURATION = 2000;
 unsigned int saubernStartedAt = 0;
 
-int saubernCycleCount = 7;
-int saubernPumpMS = 10000;
-int saubernWaitMS = 7000;
+result saveCleanState()
+{
 
+    int address = 30;
+    int savedCycles;
+    int savedPumpS;
+    int savedWaitS;
+    EEPROM.begin(EEPROM_SIZE);
+
+    EEPROM.get(address, savedCycles);
+    address += sizeof(savedCycles);
+    EEPROM.get(address, savedPumpS);
+    address += sizeof(savedPumpS);
+    EEPROM.get(address, savedWaitS);
+
+    if (savedWaitS == saubernWaitS && savedPumpS == saubernPumpS && savedCycles == saubernCycleCount)
+    {
+        Serial.printf("no save nessecary\n");
+    }
+    else
+    {
+        int address = 0;
+        EEPROM.put(address, saubernCycleCount);
+        address += sizeof(saubernCycleCount);
+        EEPROM.put(address, saubernPumpS);
+        address += sizeof(saubernPumpS);
+        EEPROM.put(address, saubernWaitS);
+        address += sizeof(saubernWaitS);
+        EEPROM.commit();
+        Serial.printf("written %i bytes to flash\n", address);
+    }
+    EEPROM.end();
+    MENU_ON = false;
+    lastChange = millis();
+    return proceed;
+}
 
 result saveState()
 {
@@ -77,16 +110,41 @@ void loadState()
 {
     int address = 0;
     EEPROM.begin(EEPROM_SIZE);
+
+    // load state and timer config
     EEPROM.get(address, mode);
     address += sizeof(mode);
     EEPROM.get(address, position);
     address += sizeof(position);
+
+
+    address = 30;
+
+    // load cleaning cycle data
+    EEPROM.get(address, saubernCycleCount);
+    address += sizeof(saubernCycleCount);
+    EEPROM.get(address, saubernPumpS);
+    address += sizeof(saubernPumpS);
+    EEPROM.get(address, saubernWaitS);
+    address += sizeof(saubernWaitS);
+
     EEPROM.end();
     Serial.printf("read %i bytes from flash", address);
 
     if (mode != TIME_MODE && mode != OPEN_MODE)
     {
         mode = OPEN_MODE;
+    }
+    // set useful default values for init
+    if (saubernCycleCount>20 | saubernCycleCount<1){
+        saubernCycleCount = 7;
+    }
+    if (saubernPumpS>20 | saubernPumpS<1){
+        saubernPumpS = 5;
+    }
+    if (saubernWaitS>20 | saubernWaitS<1){
+        saubernWaitS
+         = 5;
     }
     position = setPosition(position);
 }
@@ -177,11 +235,15 @@ void control()
             int change = getPosition() - position;
             if (change > 0)
             {
+                Serial.print("+");
                 navigationInput.write('+');
+                Serial.println("/");
             }
             else
             {
+                Serial.print("-");
                 navigationInput.write('-');
+                Serial.println("/");
             }
             setPosition(position); // reset internal count;
         }
@@ -204,7 +266,9 @@ void control()
     {
         if (MENU_ON)
         {
+            Serial.print("*");
             navigationInput.write('*');
+            Serial.println("/");
         }
         else
         {

@@ -33,13 +33,17 @@ extern unsigned long startedBrewAt;  // millis at which the last brew started
 extern unsigned long finishedBrewAt; // millis at which the last brew finished
 extern unsigned long lastChange;     // when did the last user interaction happen
 
-extern int saubernCycleCount;
-extern int saubernPumpMS;
-extern int saubernWaitMS;
+extern unsigned int saubernCycleCount;
+extern unsigned int saubernPumpS;
+extern unsigned int saubernWaitS;
 extern unsigned int saubernStartedAt;
+
+#define saubernPumpMS saubernPumpS*1000
+#define saubernWaitMS saubernPumpS*1000
 
 
 void control();
 void initControl();
 result saveState();
 result startSaubern();
+result saveCleanState();

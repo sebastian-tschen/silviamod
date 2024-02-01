@@ -6,7 +6,7 @@
 #include "controller.hpp"
 #include "rotary.hpp"
 
-#define MENU_ASYNC
+#define MENU_DEBUG
 
 #include <menu.h>
 #include <menuIO/u8g2Out.h>
@@ -44,9 +44,27 @@ const colorDef<uint8_t> colors[6] MEMMODE={
   {{1,1},{1,0,0}},//titleColor
 };
 
+
+unsigned int saubernCycleCount = 7;
+unsigned int saubernPumpS = 1;
+unsigned int saubernWaitS = 7;
+
+
+uint16_t scc = 8;
+uint16_t sps = 5;
+uint16_t sws = 4;
+
+MENU(cleanMenu,"Clean config",saveCleanState,exitEvent,noStyle
+  ,FIELD(scc,"","x",1,20,1,0,doNothing,noEvent,wrapStyle)
+  ,FIELD(sps,"","+",1,20,1,0,doNothing,noEvent,wrapStyle)
+  ,FIELD(sws,"","s",1,20,1,0,doNothing,noEvent,wrapStyle)
+  ,EXIT("<Back")
+);
+
 MENU(mainMenu,"Hauptmenü",doNothing,noEvent,wrapStyle
   ,OP("Saubern",startSaubern,enterEvent)
   ,OP("Speichern",saveState,enterEvent)
+  ,SUBMENU(cleanMenu)
   ,EXIT("<zurück")
 );
 
