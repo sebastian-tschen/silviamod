@@ -6,7 +6,8 @@
 
 #define EEPROM_SIZE 50
 
-
+int saubernMemOffset = 8;
+int preinfusionMemOffset = 20;
 int position = 30; // rotary encoder position, marking seconds of brew time
 unsigned long lastChange;
 int state = WAITING;
@@ -16,12 +17,74 @@ unsigned long finishedBrewAt = 0;
 bool pressDetected = false;
 unsigned long pressDetectedAt = 0;
 unsigned int LONG_PRESS_DURATION = 2000;
-unsigned int saubernStartedAt = 0;
+unsigned long saubernStartedAt = 0;
+
+int saubernCycleCount = 7;
+int saubernPumpS = 1;
+int saubernWaitS = 7;
+
+bool preinfusionEnabled=false;
+
+int preinfusionPumpS = 2;
+int preinfusionWaitS = 3;
+
+
+
+
+
+result savePreinfusionState()
+{
+
+    int address = preinfusionMemOffset;
+    int savedPreinfusionPumpS;
+    int savedPreinfusionWaitS;
+    int8 savedPreinfusionEnabledInt;
+    int8 preinfusionEnabledInt = 0;
+    if (preinfusionEnabled){
+        preinfusionEnabledInt = 1;
+    }
+
+    EEPROM.begin(EEPROM_SIZE);
+
+    EEPROM.get(address, savedPreinfusionPumpS);
+    address += sizeof(savedPreinfusionPumpS);
+    EEPROM.get(address, savedPreinfusionWaitS);
+    address += sizeof(savedPreinfusionWaitS);
+    EEPROM.get(address, savedPreinfusionEnabledInt);
+
+    if (savedPreinfusionPumpS == preinfusionPumpS && savedPreinfusionWaitS == preinfusionWaitS && savedPreinfusionEnabledInt == preinfusionEnabledInt)
+    {
+        Serial.printf("no save nessecary\n");
+    }
+    else
+    {
+
+        Serial.print("saving preinfusionPumpS: ");
+        Serial.println(preinfusionPumpS);
+        Serial.print("saving preinfusionWaitS: ");
+        Serial.println(preinfusionWaitS);
+        Serial.print("saving preinfusionEnabled: ");
+        Serial.println(preinfusionEnabled);
+        int address = preinfusionMemOffset;
+        EEPROM.put(address, preinfusionPumpS);
+        address += sizeof(preinfusionPumpS);
+        EEPROM.put(address, preinfusionWaitS);
+        address += sizeof(preinfusionWaitS);
+        EEPROM.put(address, preinfusionEnabledInt);
+        address += sizeof(preinfusionEnabledInt);
+        EEPROM.commit();
+        Serial.printf("written up to byte %i into flash\n", address);
+    }
+    EEPROM.end();
+    MENU_ON = false;
+    lastChange = millis();
+    return proceed;
+}
 
 result saveCleanState()
 {
 
-    int address = 30;
+    int address = saubernMemOffset;
     int savedCycles;
     int savedPumpS;
     int savedWaitS;
@@ -39,7 +102,7 @@ result saveCleanState()
     }
     else
     {
-        int address = 0;
+        int address = saubernMemOffset;
         EEPROM.put(address, saubernCycleCount);
         address += sizeof(saubernCycleCount);
         EEPROM.put(address, saubernPumpS);
@@ -117,9 +180,6 @@ void loadState()
     EEPROM.get(address, position);
     address += sizeof(position);
 
-
-    address = 30;
-
     // load cleaning cycle data
     EEPROM.get(address, saubernCycleCount);
     address += sizeof(saubernCycleCount);
@@ -128,24 +188,66 @@ void loadState()
     EEPROM.get(address, saubernWaitS);
     address += sizeof(saubernWaitS);
 
+    int8 preinfusionEnabledInt=0;
+    // load preinfusion config data
+    EEPROM.get(address, preinfusionPumpS);
+    address += sizeof(preinfusionPumpS);
+    EEPROM.get(address, preinfusionWaitS);
+    address += sizeof(preinfusionWaitS);
+    EEPROM.get(address, preinfusionEnabledInt);
+    address += sizeof(preinfusionEnabledInt);
+
     EEPROM.end();
-    Serial.printf("read %i bytes from flash", address);
+    Serial.printf("read %i bytes from flash\n", address);
 
     if (mode != TIME_MODE && mode != OPEN_MODE)
     {
         mode = OPEN_MODE;
     }
     // set useful default values for init
-    if (saubernCycleCount>20 | saubernCycleCount<1){
+    Serial.print("loaded saubernCycleCount: ");
+    Serial.println(saubernCycleCount);
+    Serial.print("loaded saubernPumpS: ");
+    Serial.println(saubernPumpS);
+    Serial.print("loaded saubernWaitS: ");
+    Serial.println(saubernWaitS);
+
+    Serial.print("loaded preinfusionPumpS: ");
+    Serial.println(preinfusionPumpS);
+    Serial.print("loaded preinfusionWaitS: ");
+    Serial.println(preinfusionWaitS);
+    Serial.print("loaded preinfusionEnabledInt: ");
+    Serial.println(preinfusionEnabledInt);
+    if ((saubernCycleCount > 20) | (saubernCycleCount < 1))
+    {
         saubernCycleCount = 7;
     }
-    if (saubernPumpS>20 | saubernPumpS<1){
+    if ((saubernPumpS > 20) | (saubernPumpS < 1))
+    {
         saubernPumpS = 5;
     }
-    if (saubernWaitS>20 | saubernWaitS<1){
-        saubernWaitS
-         = 5;
+    if ((saubernWaitS > 20) | (saubernWaitS < 1))
+    {
+        saubernWaitS = 5;
     }
+    if ((preinfusionPumpS>10) | (preinfusionPumpS<1)){
+        preinfusionPumpS = 2;
+    }
+    if ((preinfusionWaitS>10) | (preinfusionWaitS<1)){
+        preinfusionWaitS = 3;
+    }
+    if (preinfusionEnabledInt!= 1){
+        preinfusionEnabled = false;
+        Serial.println("disabling preinfusion");
+    }else{
+        preinfusionEnabled = true;
+        Serial.println("enabling preinfusion");
+    }
+    Serial.println(preinfusionEnabled);
+    // if (savePre){
+    //     savePreinfusionState();
+    // }
+
     position = setPosition(position);
 }
 
@@ -170,6 +272,16 @@ bool timedBrewFinished()
         return false;
     }
     return millis() > (startedBrewAt + (position * 1000l));
+}
+
+bool inPreinfusionWindow()
+{
+
+    unsigned long window_start = startedBrewAt + preinfusionPumpMS;
+    unsigned long window_end = window_start + preinfusionWaitMS;
+    unsigned long now = millis();
+
+    return ((now > window_start) && (now < window_end));
 }
 
 void switchLED(int on)
@@ -209,6 +321,18 @@ void stopBrew()
     Serial.println(state);
 }
 
+void startPump()
+{
+    Serial.println("starting Pump");
+    digitalWrite(PUMP_PIN, 0);
+}
+
+void stopPump()
+{
+    Serial.println("stopping Pump");
+    digitalWrite(PUMP_PIN, 1);
+}
+
 void goToSleep()
 {
 
@@ -237,12 +361,14 @@ void control()
             {
                 Serial.print("+");
                 navigationInput.write('+');
+                // navigationInput.write('X');
                 Serial.println("/");
             }
             else
             {
                 Serial.print("-");
                 navigationInput.write('-');
+                // navigationInput.write('X');
                 Serial.println("/");
             }
             setPosition(position); // reset internal count;
@@ -300,42 +426,63 @@ void control()
         }
     }
 
-    if (state == SAUBERN){
+    if (state == SAUBERN)
+    {
 
         // find out where we are in the saubern cycle
-        int timeInSaubern = millis()-saubernStartedAt;
+        int timeInSaubern = millis() - saubernStartedAt;
         int cycleDuration = (saubernPumpMS + saubernWaitMS);
-        int saubernCycle = timeInSaubern/cycleDuration;
+        int saubernCycle = timeInSaubern / cycleDuration;
         int timeIncycle = (timeInSaubern - (saubernCycle * cycleDuration));
 
-        Serial.println(timeInSaubern);
-        Serial.println(cycleDuration);
-        Serial.println(saubernCycle);
-        Serial.println(timeIncycle);
-        Serial.println(timeIncycle - saubernPumpMS);
-        if (timeIncycle - saubernPumpMS > 0){
+        // Serial.print("timeInSaubern: ");
+        // Serial.println(timeInSaubern);
+        // Serial.print("cycleDuration: ");
+        // Serial.println(cycleDuration);
+        // Serial.print("saubernCycle: ");
+        // Serial.println(saubernCycle);
+        // Serial.print("timeIncycle: ");
+        // Serial.println(timeIncycle);
+        // Serial.println(timeIncycle - saubernPumpMS);
+        if (timeIncycle - saubernPumpMS > 0)
+        {
 
             Serial.println("no saubern");
-            //we should be waiting
+            // we should be waiting
             digitalWrite(VALVE_PIN, 1);
             digitalWrite(PUMP_PIN, 1);
-            if (saubernCycle >= saubernCycleCount){
+            if (saubernCycle >= saubernCycleCount)
+            {
                 stopSaubern();
                 return;
             }
-        }else{
-            //we should be pumping
+        }
+        else
+        {
+            // we should be pumping
             Serial.println("do saubern");
             digitalWrite(VALVE_PIN, 0);
             digitalWrite(PUMP_PIN, 0);
         }
         return;
-
     }
 
     if (state == BREWING)
     {
         // while brewing, no input is accepted
+        // check if we are doing a pre-infusion and need to switch the pump separately
+        if (preinfusionEnabled == true)
+        {
+            if (inPreinfusionWindow())
+            {
+                stopPump();
+            }
+            else
+            {
+                startPump();
+            }
+        }
+
         // check if timed-brew is done or brew switch is off
         if (brewSwitch.read() == brewSwitch.RELEASED || timedBrewFinished())
         {

@@ -46,7 +46,17 @@ void updateDisplay()
         int cycleDuration = (saubernPumpMS + saubernWaitMS);
         int saubernCycle = timeInSaubern/cycleDuration;
         int timeIncycle = (timeInSaubern - (saubernCycle * cycleDuration));
-\
+
+        Serial.print("timeInSaubern: ");
+        Serial.println(timeInSaubern);
+        Serial.print("cycleDuration: ");
+        Serial.println(cycleDuration);
+        Serial.print("saubernCycle: ");
+        Serial.println(saubernCycle);
+        Serial.print("timeIncycle: ");
+        Serial.println(timeIncycle);
+
+
         if (timeIncycle - saubernPumpMS > 0){
           //waiting
           int timeToDisplay = (timeIncycle - saubernPumpMS) / 1000;
@@ -61,8 +71,10 @@ void updateDisplay()
           u8g2.sendBuffer();
         }else{
           // pumping
-          int timeToDisplay = (saubernPumpMS - timeIncycle) / 1000;
+          int timeToDisplay = ((int)saubernPumpMS - timeIncycle) / 1000;
 
+          Serial.print("timeToDisplay: ");
+          Serial.println(timeToDisplay);
           u8g2.clearBuffer();
           u8g2.setFont(u8g2_font_fub42_tn);
           u8g2.setCursor(0, 70);

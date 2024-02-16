@@ -45,19 +45,23 @@ const colorDef<uint8_t> colors[6] MEMMODE={
 };
 
 
-unsigned int saubernCycleCount = 7;
-unsigned int saubernPumpS = 1;
-unsigned int saubernWaitS = 7;
 
+MENU(cleanMenu,"config",saveCleanState,exitEvent,noStyle
+  ,FIELD(saubernCycleCount,"","X",1,20,1,0,doNothing,noEvent,wrapStyle)
+  ,FIELD(saubernPumpS,"","Spülen",1,20,1,0,doNothing,noEvent,wrapStyle)
+  ,FIELD(saubernWaitS,"","Pause",1,20,1,0,doNothing,noEvent,wrapStyle)
+  ,EXIT("<Back")
+);
 
-uint16_t scc = 8;
-uint16_t sps = 5;
-uint16_t sws = 4;
+TOGGLE(preinfusionEnabled,preinfusionMenuToggle,"",doNothing,noEvent,wrapStyle
+  ,VALUE("OFF",false,doNothing,noEvent)
+  ,VALUE("ON",true,doNothing,noEvent)
+);
 
-MENU(cleanMenu,"Clean config",saveCleanState,exitEvent,noStyle
-  ,FIELD(scc,"","x",1,20,1,0,doNothing,noEvent,wrapStyle)
-  ,FIELD(sps,"","+",1,20,1,0,doNothing,noEvent,wrapStyle)
-  ,FIELD(sws,"","s",1,20,1,0,doNothing,noEvent,wrapStyle)
+MENU(preinfusionMenu,"preinfusion",savePreinfusionState,exitEvent,noStyle
+  ,SUBMENU(preinfusionMenuToggle)
+  ,FIELD(preinfusionPumpS,"pump","s",1,20,1,0,doNothing,noEvent,wrapStyle)
+  ,FIELD(preinfusionWaitS,"wait","s",1,20,1,0,doNothing,noEvent,wrapStyle)
   ,EXIT("<Back")
 );
 
@@ -65,6 +69,7 @@ MENU(mainMenu,"Hauptmenü",doNothing,noEvent,wrapStyle
   ,OP("Saubern",startSaubern,enterEvent)
   ,OP("Speichern",saveState,enterEvent)
   ,SUBMENU(cleanMenu)
+  ,SUBMENU(preinfusionMenu)
   ,EXIT("<zurück")
 );
 
@@ -78,8 +83,10 @@ MENU_OUTPUTS(out,MAX_DEPTH
 );
 
 
-stringIn<0> navigationInput;//buffer size: 2^5 = 32 bytes, eventually use 0 for a single byte
-NAVROOT(menuNav,mainMenu,MAX_DEPTH,navigationInput,out);
+stringIn<5> navigationInput;//buffer size: 2^5 = 32 bytes, eventually use 0 for a single byte
+MENU_INPUTS(in,&navigationInput);
+
+NAVROOT(menuNav,mainMenu,MAX_DEPTH,in,out);
 
 Button rotaryButton(BUTTON);
 Button brewSwitch(BREW_SWITCH);

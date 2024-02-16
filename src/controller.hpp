@@ -22,7 +22,7 @@
 extern Button rotaryButton;
 extern Button brewSwitch;
 extern navRoot menuNav;
-extern stringIn<0> navigationInput;
+extern stringIn<5> navigationInput;
 
 extern int position; // rotary encoder position, marking seconds of brew time
 
@@ -33,13 +33,21 @@ extern unsigned long startedBrewAt;  // millis at which the last brew started
 extern unsigned long finishedBrewAt; // millis at which the last brew finished
 extern unsigned long lastChange;     // when did the last user interaction happen
 
-extern unsigned int saubernCycleCount;
-extern unsigned int saubernPumpS;
-extern unsigned int saubernWaitS;
-extern unsigned int saubernStartedAt;
+extern int saubernCycleCount;
+extern int saubernPumpS;
+extern int saubernWaitS;
+extern int preinfusionPumpS;
+extern int preinfusionWaitS;
+
+extern bool preinfusionEnabled;
+
+extern unsigned long saubernStartedAt;
 
 #define saubernPumpMS saubernPumpS*1000
-#define saubernWaitMS saubernPumpS*1000
+#define saubernWaitMS saubernWaitS*1000
+
+#define preinfusionPumpMS preinfusionPumpS*1000
+#define preinfusionWaitMS preinfusionWaitS*1000
 
 
 void control();
@@ -47,3 +55,4 @@ void initControl();
 result saveState();
 result startSaubern();
 result saveCleanState();
+result savePreinfusionState();
